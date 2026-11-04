@@ -12,6 +12,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -24,6 +25,7 @@ import {
 	toNumber,
 	type Weekend,
 } from "./calculations";
+import { cityOptions, flightLocationFor } from "./cities";
 import {
 	type CalendarDate,
 	compactDate,
@@ -293,14 +295,11 @@ function PersonFields({
 			</div>
 			<div className="space-y-2">
 				<Label htmlFor={`city-${index}`}>Starting city</Label>
-				<Input
+				<Combobox
 					id={`city-${index}`}
 					value={person.city}
-					maxLength={60}
-					onChange={(event) => {
-						const value = eventText(event);
-						if (value !== null) onChange(index, "city", value);
-					}}
+					options={cityOptions}
+					onValueChange={(value) => onChange(index, "city", value)}
 				/>
 			</div>
 			<FlightDepartureFields
@@ -342,6 +341,11 @@ function Timeline({
 }) {
 	const names = [people[0].name, people[1].name];
 	const symbols = [people[0].symbol, people[1].symbol];
+	const firstCity = people[0].city;
+	const secondCity = people[1].city;
+	const unresolvedCities = [...new Set([firstCity, secondCity])].filter(
+		(city) => !flightLocationFor(city),
+	);
 	return (
 		<Card>
 			<CardHeader>
@@ -349,6 +353,12 @@ function Timeline({
 				<CardDescription>
 					Week 0 starts on {shortDate(firstSaturday)}. Select a flight cell to
 					open its round-trip search.
+					{unresolvedCities.length > 0 && (
+						<span className="block">
+							Choose a listed city for {unresolvedCities.join(" and ")} to
+							create flight links.
+						</span>
+					)}
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -411,23 +421,29 @@ function Timeline({
 						}
 						const outboundTime = person.times[person.departure];
 						const returnTime = person.times[person.returnDay];
+						const origin = flightLocationFor(person.city);
+						const destinationLocation = flightLocationFor(destination.city);
+						const href =
+							origin && destinationLocation
+								? googleFlightsUrl({
+										origin,
+										destination: destinationLocation,
+										depart: dates.depart,
+										returnDate: dates.returnDate,
+										nonstopOnly,
+										outboundTime,
+										returnTime,
+									})
+								: undefined;
 						return (
 							<a
 								key={day.week}
 								title={title}
-								className={`group block min-h-28 min-w-0 rounded-lg border ${border} ${coincidence ? "bg-amber-50" : day.flyer === 0 ? "bg-sky-50" : "bg-violet-50"} p-1.5 text-center text-foreground transition hover:border-primary hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
-								href={googleFlightsUrl({
-									from: person.city,
-									to: destination.city,
-									depart: dates.depart,
-									returnDate: dates.returnDate,
-									nonstopOnly,
-									outboundTime,
-									returnTime,
-								})}
-								target="_blank"
+								className={`group block min-h-28 min-w-0 rounded-lg border ${border} ${coincidence ? "bg-amber-50" : day.flyer === 0 ? "bg-sky-50" : "bg-violet-50"} p-1.5 text-center text-foreground transition ${href ? "hover:border-primary hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : "opacity-60"}`}
+								href={href}
+								target={href ? "_blank" : undefined}
 								rel="noopener noreferrer"
-								aria-label={`${title}. ${person.city} to ${destination.city}, ${toIsoDate(dates.depart)}, ${hourLabel(outboundTime.start)} to ${hourLabel(outboundTime.end)}. ${destination.city} to ${person.city}, ${toIsoDate(dates.returnDate)}, ${hourLabel(returnTime.start)} to ${hourLabel(returnTime.end)}.${nonstopOnly ? " Nonstop only." : ""} Open Google Flights.`}
+								aria-label={`${title}. ${person.city} to ${destination.city}, ${toIsoDate(dates.depart)}, ${hourLabel(outboundTime.start)} to ${hourLabel(outboundTime.end)}. ${destination.city} to ${person.city}, ${toIsoDate(dates.returnDate)}, ${hourLabel(returnTime.start)} to ${hourLabel(returnTime.end)}.${nonstopOnly ? " Nonstop only." : ""}${href ? " Open Google Flights." : " Flight location lookup unavailable."}`}
 							>
 								<div className="flex items-center justify-between gap-1 text-[9px] text-muted-foreground">
 									<span>#{day.week}</span>
@@ -435,7 +451,7 @@ function Timeline({
 										aria-hidden="true"
 										className="text-sm leading-3 text-primary"
 									>
-										↗
+										{href ? "↗" : "·"}
 									</span>
 								</div>
 								{coincidence ? (

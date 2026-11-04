@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { flightLocationFor } from "../src/cities.ts";
 import {
 	type CalendarDate,
 	calendarDateSchema,
@@ -13,6 +14,7 @@ import {
 import { googleFlightsUrl } from "../src/flights.ts";
 
 const date = (day: number): CalendarDate => ({ year: 2026, month: 11, day });
+const city = (id: string) => ({ id, kind: "city" as const });
 
 test("flight weekends use the chosen departure and return days", () => {
 	assert.deepEqual(nextSaturday(new Date(2026, 10, 3)), date(7));
@@ -75,8 +77,8 @@ test("date input is parsed once into a validated calendar date", () => {
 test("city-wide round-trip link matches the supplied Philadelphia–Orlando example", () => {
 	const url = new URL(
 		googleFlightsUrl({
-			from: "Philadelphia",
-			to: "Orlando",
+			origin: city("/m/0dclg"),
+			destination: city("/m/0ply0"),
 			depart: date(27),
 			returnDate: date(29),
 		}),
@@ -84,14 +86,14 @@ test("city-wide round-trip link matches the supplied Philadelphia–Orlando exam
 	assert.equal(url.origin, "https://www.google.com");
 	assert.equal(
 		url.searchParams.get("tfs"),
-		"CBwQAhooEgoyMDI2LTExLTI3agwIAxIIL20vMHBseTByDAgDEggvbS8wZGNsZxooEgoyMDI2LTExLTI5agwIAxIIL20vMGRjbGdyDAgDEggvbS8wcGx5MEABSAFwAYIBCwj___________8BmAEB",
+		"CBwQAhooEgoyMDI2LTExLTI3agwIAxIIL20vMGRjbGdyDAgDEggvbS8wcGx5MBooEgoyMDI2LTExLTI5agwIAxIIL20vMHBseTByDAgDEggvbS8wZGNsZ0ABSAFwAYIBCwj___________8BmAEB",
 	);
 	assert.equal(url.searchParams.get("tfu"), "EgYIABAAGAA");
 
 	const reverse = new URL(
 		googleFlightsUrl({
-			from: "Orlando",
-			to: "Philadelphia",
+			origin: city("/m/0ply0"),
+			destination: city("/m/0dclg"),
 			depart: date(27),
 			returnDate: date(29),
 		}),
@@ -101,15 +103,15 @@ test("city-wide round-trip link matches the supplied Philadelphia–Orlando exam
 			.replace(/-/g, "+")
 			.replace(/_/g, "/"),
 	);
-	assert.ok(raw.indexOf("/m/0dclg") < raw.indexOf("/m/0ply0"));
-	assert.ok(raw.lastIndexOf("/m/0ply0") < raw.lastIndexOf("/m/0dclg"));
+	assert.ok(raw.indexOf("/m/0ply0") < raw.indexOf("/m/0dclg"));
+	assert.ok(raw.lastIndexOf("/m/0dclg") < raw.lastIndexOf("/m/0ply0"));
 });
 
-test("nonstop round-trip link matches the supplied Orlando–Philadelphia example", () => {
+test("nonstop round-trip link matches the supplied Philadelphia–Orlando example", () => {
 	const url = new URL(
 		googleFlightsUrl({
-			from: "Orlando",
-			to: "Philadelphia",
+			origin: city("/m/0dclg"),
+			destination: city("/m/0ply0"),
 			depart: date(27),
 			returnDate: date(29),
 			nonstopOnly: true,
@@ -125,8 +127,8 @@ test("nonstop round-trip link matches the supplied Orlando–Philadelphia exampl
 test("round-trip time filters match the supplied Google Flights example", () => {
 	const url = new URL(
 		googleFlightsUrl({
-			from: "Orlando",
-			to: "Philadelphia",
+			origin: city("/m/0dclg"),
+			destination: city("/m/0ply0"),
 			depart: date(27),
 			returnDate: date(29),
 			nonstopOnly: true,
@@ -140,8 +142,8 @@ test("round-trip time filters match the supplied Google Flights example", () => 
 	);
 	assert.throws(() =>
 		googleFlightsUrl({
-			from: "Orlando",
-			to: "Philadelphia",
+			origin: city("/m/0dclg"),
+			destination: city("/m/0ply0"),
 			depart: date(27),
 			returnDate: date(29),
 			outboundTime: { start: 20, end: 18 },
@@ -149,44 +151,32 @@ test("round-trip time filters match the supplied Google Flights example", () => 
 	);
 });
 
-test("other city names remain usable without airport codes", () => {
+test("Seattle–New York round trip matches the supplied city-wide link", () => {
 	const url = new URL(
 		googleFlightsUrl({
-			from: "Boston",
-			to: "Orlando",
-			depart: date(27),
-			returnDate: date(29),
+			origin: flightLocationFor("Seattle") ?? city(""),
+			destination: flightLocationFor("New York") ?? city(""),
+			depart: date(7),
+			returnDate: date(8),
 		}),
 	);
 	assert.equal(
-		url.searchParams.get("q"),
-		"Flights to Orlando from Boston on 2026-11-27 through 2026-11-29",
+		url.searchParams.get("tfs"),
+		"CBwQAhopEgoyMDI2LTExLTA3agwIAxIIL20vMGQ5anJyDQgDEgkvbS8wMl8yODYaKRIKMjAyNi0xMS0wOGoNCAMSCS9tLzAyXzI4NnIMCAMSCC9tLzBkOWpyQAFIAXABggELCP___________wGYAQE",
 	);
-	const nonstop = new URL(
-		googleFlightsUrl({
-			from: "Boston",
-			to: "Orlando",
-			depart: date(27),
-			returnDate: date(29),
-			nonstopOnly: true,
-		}),
-	);
-	assert.equal(
-		nonstop.searchParams.get("q"),
-		"Nonstop flights to Orlando from Boston on 2026-11-27 through 2026-11-29",
-	);
+	assert.equal(url.searchParams.get("q"), null);
 	assert.throws(() =>
 		googleFlightsUrl({
-			from: "",
-			to: "Orlando",
+			origin: city(""),
+			destination: city("/m/0ply0"),
 			depart: date(27),
 			returnDate: date(29),
 		}),
 	);
 	assert.throws(() =>
 		googleFlightsUrl({
-			from: "Boston",
-			to: "Orlando",
+			origin: city("/m/0d9jr"),
+			destination: city("/m/0ply0"),
 			depart: date(27),
 			returnDate: date(29),
 			nonstopOnly: "yes" as never,

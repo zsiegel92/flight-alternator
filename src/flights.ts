@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cityIdSchema, type FlightLocation } from "./cities.ts";
 import {
 	type CalendarDate,
 	calendarDateSchema,
@@ -18,8 +19,20 @@ export type TimeWindow = z.infer<typeof timeWindowSchema>;
 
 const searchSchema = z
 	.object({
-		from: citySchema,
-		to: citySchema,
+		origin: z.discriminatedUnion("kind", [
+			z.object({ id: cityIdSchema, kind: z.literal("city") }),
+			z.object({
+				id: z.string().regex(/^[A-Z]{3}$/),
+				kind: z.literal("airport"),
+			}),
+		]),
+		destination: z.discriminatedUnion("kind", [
+			z.object({ id: cityIdSchema, kind: z.literal("city") }),
+			z.object({
+				id: z.string().regex(/^[A-Z]{3}$/),
+				kind: z.literal("airport"),
+			}),
+		]),
 		depart: calendarDateSchema,
 		returnDate: calendarDateSchema,
 		nonstopOnly: z.boolean().default(false),
@@ -28,15 +41,9 @@ const searchSchema = z
 	})
 	.refine((trip) => isCalendarDateBefore(trip.depart, trip.returnDate));
 
-// City IDs from the city-wide Google Flights link provided for this route.
-const cityIds: Record<string, string> = {
-	orlando: "/m/0dclg",
-	philadelphia: "/m/0ply0",
-};
-
 export function googleFlightsUrl(input: {
-	from: string;
-	to: string;
+	origin: FlightLocation;
+	destination: FlightLocation;
 	depart: CalendarDate;
 	returnDate: CalendarDate;
 	nonstopOnly?: boolean;
@@ -44,20 +51,14 @@ export function googleFlightsUrl(input: {
 	returnTime?: TimeWindow;
 }): string {
 	const {
-		from,
-		to,
+		origin,
+		destination,
 		depart,
 		returnDate,
 		nonstopOnly,
 		outboundTime,
 		returnTime,
 	} = searchSchema.parse(input);
-	const originId = cityIds[from.toLowerCase()];
-	const destinationId = cityIds[to.toLowerCase()];
-	if (!originId || !destinationId) {
-		const query = `${nonstopOnly ? "Nonstop flights" : "Flights"} to ${to} from ${from} on ${toIsoDate(depart)} through ${toIsoDate(returnDate)}${outboundTime ? `, departing ${outboundTime.start}:00-${outboundTime.end}:00` : ""}${returnTime ? `, returning ${returnTime.start}:00-${returnTime.end}:00` : ""}`;
-		return `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}`;
-	}
 
 	const encoder = new TextEncoder();
 	const varint = (number: number): number[] => {
@@ -76,11 +77,14 @@ export function googleFlightsUrl(input: {
 		const data = typeof value === "string" ? [...encoder.encode(value)] : value;
 		return [...varint(field * 8 + 2), ...varint(data.length), ...data];
 	};
-	const city = (id: string) => [...numberField(1, 3), ...bytes(2, id)];
+	const location = ({ id, kind }: FlightLocation) => [
+		...numberField(1, kind === "airport" ? 1 : 3),
+		...bytes(2, id),
+	];
 	const leg = (
 		date: CalendarDate,
-		origin: string,
-		destination: string,
+		origin: FlightLocation,
+		destination: FlightLocation,
 		time?: TimeWindow,
 	) =>
 		bytes(3, [
@@ -94,14 +98,14 @@ export function googleFlightsUrl(input: {
 						...numberField(11, 23),
 					]
 				: []),
-			...bytes(13, city(origin)),
-			...bytes(14, city(destination)),
+			...bytes(13, location(origin)),
+			...bytes(14, location(destination)),
 		]);
 	const data = [
 		...numberField(1, 28),
 		...numberField(2, 2),
-		...leg(depart, originId, destinationId, outboundTime),
-		...leg(returnDate, destinationId, originId, returnTime),
+		...leg(depart, origin, destination, outboundTime),
+		...leg(returnDate, destination, origin, returnTime),
 		...numberField(8, 1),
 		...numberField(9, 1),
 		...numberField(14, 1),
