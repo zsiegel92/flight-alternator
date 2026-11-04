@@ -2,6 +2,8 @@
 
 A frontend-only React calculator for two people planning visits. There is no server, account, storage, or API request.
 
+The full editable plan is stored in the URL. Copy the address to share it or reopen it later.
+
 Enter each person's starting city. Their destination is the other person's city. Choose a Saturday for week 0, a Friday or Saturday departure, a Sunday or Monday return, and an hourly departure window for each flight. Flight weekends link to Google Flights with the assigned person's round-trip route and dates. Orlando and Philadelphia use city-wide searches that include nearby airports and apply the selected time and nonstop filters. Other cities use a city-name search query that requests those preferences, but Google Flights may not enforce them as filters.
 
 ## Run

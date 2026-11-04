@@ -1,5 +1,6 @@
 import { ArrowLeftRight } from "lucide-react";
-import { type ChangeEvent, useState } from "react";
+import { parseAsJson, useQueryState } from "nuqs";
+import { type ChangeEvent, useEffect } from "react";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import {
 } from "./calculations";
 import {
 	type CalendarDate,
+	calendarDateSchema,
 	compactDate,
 	compactDateRange,
 	type Departure,
@@ -60,6 +62,12 @@ const money = z
 	.regex(/^\d+(?:\.\d{0,2})?$/, "Enter a valid amount")
 	.transform(Number)
 	.pipe(z.number().finite());
+const flightTimesSchema = z.object({
+	friday: timeWindowSchema,
+	saturday: timeWindowSchema,
+	sunday: timeWindowSchema,
+	monday: timeWindowSchema,
+});
 const personSchema = z.object({
 	name: z.string().trim().min(1).max(40),
 	symbol: z.string().trim().min(1).max(20),
@@ -67,12 +75,7 @@ const personSchema = z.object({
 	city: citySchema,
 	departure: departureSchema,
 	returnDay: returnDaySchema,
-	times: z.object({
-		friday: timeWindowSchema,
-		saturday: timeWindowSchema,
-		sunday: timeWindowSchema,
-		monday: timeWindowSchema,
-	}),
+	times: flightTimesSchema,
 });
 const formSchema = z
 	.object({
@@ -88,25 +91,28 @@ const formSchema = z
 		message: "The share cannot exceed the denominator",
 	});
 
-type PersonDraft = {
-	name: string;
-	symbol: string;
-	every: string;
-	city: string;
-	departure: Departure;
-	returnDay: ReturnDay;
-	times: FlightTimes;
-};
-type FlightTimes = Record<Departure | ReturnDay, TimeWindow>;
-type Draft = {
-	people: [PersonDraft, PersonDraft];
-	firstSaturday: CalendarDate | null;
-	nonstopOnly: boolean;
-	numerator: string;
-	denominator: string;
-	cost: string;
-};
 type Person = z.infer<typeof personSchema>;
+
+const draftPersonSchema = z.object({
+	name: z.string(),
+	symbol: z.string(),
+	every: z.string(),
+	city: z.string(),
+	departure: departureSchema,
+	returnDay: returnDaySchema,
+	times: flightTimesSchema,
+});
+const draftSchema = z.object({
+	people: z.tuple([draftPersonSchema, draftPersonSchema]),
+	firstSaturday: calendarDateSchema.nullable(),
+	nonstopOnly: z.boolean(),
+	numerator: z.string(),
+	denominator: z.string(),
+	cost: z.string(),
+});
+type PersonDraft = z.infer<typeof draftPersonSchema>;
+type FlightTimes = PersonDraft["times"];
+type Draft = z.infer<typeof draftSchema>;
 
 function defaultTimes(): FlightTimes {
 	return {
@@ -583,7 +589,16 @@ function Rate({
 }
 
 function App() {
-	const [draft, setDraft] = useState<Draft>(initialDraft);
+	const [draft, setDraft] = useQueryState(
+		"plan",
+		parseAsJson<Draft>(draftSchema)
+			.withDefault(initialDraft)
+			.withOptions({ clearOnDefault: false }),
+	);
+	useEffect(() => {
+		// Make the default plan shareable before the first edit, too.
+		void setDraft((current) => current);
+	}, [setDraft]);
 	const parsed = formSchema.safeParse(draft);
 	const valid = parsed.success ? parsed.data : null;
 	const share = valid
