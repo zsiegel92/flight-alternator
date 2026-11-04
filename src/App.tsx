@@ -167,6 +167,54 @@ function hourLabel(hour: number): string {
 	return `${hour % 12 || 12}:00 ${hour < 12 ? "am" : "pm"}`;
 }
 
+function compactDate(date: string): string {
+	return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+}
+
+function compactDateRange(start: string, end: string): string {
+	const last =
+		start.slice(0, 7) === end.slice(0, 7)
+			? String(Number(end.slice(8, 10)))
+			: compactDate(end);
+	return `${compactDate(start)}–${last}`;
+}
+
+function compactWindow(window: TimeWindow): string {
+	const start = window.start % 12 || 12;
+	const end = window.end % 12 || 12;
+	const startPeriod = window.start < 12 ? "am" : "pm";
+	const endPeriod = window.end < 12 ? "am" : "pm";
+	return startPeriod === endPeriod
+		? `${start}–${end} ${endPeriod}`
+		: `${start} ${startPeriod}–${end} ${endPeriod}`;
+}
+
+function FlightLeg({
+	from,
+	to,
+	day,
+	date,
+	window,
+}: {
+	from: string;
+	to: string;
+	day: Departure | ReturnDay;
+	date: string;
+	window: TimeWindow;
+}) {
+	const shortDay = `${day[0].toUpperCase()}${day.slice(1, 3)}`;
+	return (
+		<div className="min-w-0 border-t border-foreground/10 pt-1 first:border-0 first:pt-0">
+			<div className="break-words text-[10px] font-medium leading-3">
+				{from} → {to}
+			</div>
+			<div className="text-[9px] leading-3 text-muted-foreground">
+				{shortDay} {compactDate(date)} · {compactWindow(window)}
+			</div>
+		</div>
+	);
+}
+
 function TimeWindowFields({
 	id,
 	title,
@@ -358,8 +406,8 @@ function Timeline({
 			<CardHeader>
 				<CardTitle>52-week timeline</CardTitle>
 				<CardDescription>
-					Week 0 starts on {shortDate(firstSaturday)}. Links use each person's
-					selected departure and return times.
+					Week 0 starts on {shortDate(firstSaturday)}. Select a flight cell to
+					open its round-trip search.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -386,65 +434,106 @@ function Timeline({
 									person.returnDay,
 								)
 							: null;
-						const saturday = tripDates(
+						const weekendDates = tripDates(
 							day.week,
 							firstSaturday,
 							"saturday",
 							"sunday",
-						).depart;
+						);
 						const title = coincidence
 							? `Week ${day.week}: both planned to fly; ${names[day.flyer ?? 0]} flies`
 							: day.flyer === null
 								? `Week ${day.week}: no flight`
 								: `Week ${day.week}: ${names[day.flyer]} flies`;
+						const border = inFirstCycle ? "border-sky-300" : "border-border";
+						if (!person || !destination || !dates) {
+							return (
+								<div
+									key={day.week}
+									title={title}
+									className={`min-h-28 min-w-0 rounded-lg border ${border} bg-muted/30 p-1.5 text-center`}
+								>
+									<div className="flex items-center justify-between gap-1 text-[9px] text-muted-foreground">
+										<span>#{day.week}</span>
+										<span className="tabular-nums">
+											{compactDateRange(
+												weekendDates.depart,
+												weekendDates.returnDate,
+											)}
+										</span>
+									</div>
+									<div className="flex min-h-20 items-center justify-center text-xl text-muted-foreground">
+										·
+									</div>
+								</div>
+							);
+						}
+						const outboundTime = person.times[person.departure];
+						const returnTime = person.times[person.returnDay];
 						return (
-							<div
+							<a
 								key={day.week}
 								title={title}
-								className={`relative min-h-28 rounded-lg border p-2 text-center ${inFirstCycle ? "border-sky-300" : "border-border"} ${coincidence ? "bg-amber-50" : day.flyer === 0 ? "bg-sky-50" : day.flyer === 1 ? "bg-violet-50" : "bg-muted/30"}`}
+								className={`group block min-h-28 min-w-0 rounded-lg border ${border} ${coincidence ? "bg-amber-50" : day.flyer === 0 ? "bg-sky-50" : "bg-violet-50"} p-1.5 text-center text-foreground transition hover:border-primary hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+								href={googleFlightsUrl({
+									from: person.city,
+									to: destination.city,
+									depart: dates.depart,
+									returnDate: dates.returnDate,
+									nonstopOnly,
+									outboundTime,
+									returnTime,
+								})}
+								target="_blank"
+								rel="noopener noreferrer"
+								aria-label={`${title}. ${person.city} to ${destination.city}, ${dates.depart}, ${hourLabel(outboundTime.start)} to ${hourLabel(outboundTime.end)}. ${destination.city} to ${person.city}, ${dates.returnDate}, ${hourLabel(returnTime.start)} to ${hourLabel(returnTime.end)}.${nonstopOnly ? " Nonstop only." : ""} Open Google Flights.`}
 							>
-								<div className="text-[11px] text-muted-foreground">
-									{day.week}
+								<div className="flex items-center justify-between gap-1 text-[9px] text-muted-foreground">
+									<span>#{day.week}</span>
+									<span
+										aria-hidden="true"
+										className="text-sm leading-3 text-primary"
+									>
+										↗
+									</span>
 								</div>
 								{coincidence ? (
 									<>
-										<div className="text-sm leading-5">
+										<div className="text-sm leading-4">
 											{symbols[0]} ✦ {symbols[1]}
 										</div>
-										<div className="text-[11px] font-medium">
+										<div className="text-[9px] font-medium leading-3">
 											{symbols[day.flyer ?? 0]} flies
 										</div>
 									</>
 								) : (
-									<div className="pt-1 text-xl">
-										{day.flyer === null ? "·" : symbols[day.flyer]}
-									</div>
+									<div className="text-lg leading-5">{person.symbol}</div>
 								)}
-								<div className="mt-1 text-[10px] text-muted-foreground">
-									{dates
-										? `${shortDate(dates.depart)}–${shortDate(dates.returnDate)}`
-										: shortDate(saturday)}
+								<div className="mt-1 space-y-1 text-left">
+									<FlightLeg
+										from={person.city}
+										to={destination.city}
+										day={person.departure}
+										date={dates.depart}
+										window={outboundTime}
+									/>
+									<FlightLeg
+										from={destination.city}
+										to={person.city}
+										day={person.returnDay}
+										date={dates.returnDate}
+										window={returnTime}
+									/>
+									{nonstopOnly && (
+										<Badge
+											variant="outline"
+											className="h-4 rounded-sm border-emerald-300 bg-emerald-50 px-1 text-[9px] leading-none text-emerald-800"
+										>
+											● Nonstop
+										</Badge>
+									)}
 								</div>
-								{person && destination && dates && (
-									<a
-										className="text-[11px] font-medium text-primary underline underline-offset-2 hover:text-primary/70"
-										href={googleFlightsUrl({
-											from: person.city,
-											to: destination.city,
-											depart: dates.depart,
-											returnDate: dates.returnDate,
-											nonstopOnly,
-											outboundTime: person.times[person.departure],
-											returnTime: person.times[person.returnDay],
-										})}
-										target="_blank"
-										rel="noopener noreferrer"
-										aria-label={`Find ${person.name}'s round-trip flights from ${person.city} to ${destination.city}, ${dates.depart} to ${dates.returnDate}`}
-									>
-										Find flights ↗
-									</a>
-								)}
-							</div>
+							</a>
 						);
 					})}
 				</div>
