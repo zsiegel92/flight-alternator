@@ -77,7 +77,12 @@ function encodePlan(plan: Plan): string {
 	for (const byte of new TextEncoder().encode(JSON.stringify(plan))) {
 		bytes += String.fromCharCode(byte);
 	}
-	return btoa(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	const encoded = btoa(bytes)
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_")
+		.replace(/=+$/, "");
+	// Messages can truncate links with long runs of encoded characters.
+	return encoded.match(/.{1,200}/g)?.join(".") ?? "";
 }
 
 function decodePlan(value: string): unknown {
@@ -85,7 +90,7 @@ function decodePlan(value: string): unknown {
 		? value // Links created before base64url encoding.
 		: new TextDecoder("utf-8", { fatal: true }).decode(
 				Uint8Array.from(
-					atob(value.replace(/-/g, "+").replace(/_/g, "/")),
+					atob(value.replace(/\./g, "").replace(/-/g, "+").replace(/_/g, "/")),
 					(character) => character.charCodeAt(0),
 				),
 			);

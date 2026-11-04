@@ -13,12 +13,15 @@ const plan: Plan = {
 
 test("share links use URL-safe text and preserve Unicode and every field", () => {
 	const encoded = planParser.serialize(plan);
-	assert.match(encoded, /^[A-Za-z0-9_-]+$/);
+	assert.match(encoded, /^[A-Za-z0-9_.-]+$/);
+	assert.ok(encoded.includes("."));
+	assert.ok(encoded.split(".").every((part) => part.length <= 200));
 	assert.equal(
 		new URLSearchParams({ plan: encoded }).toString(),
 		`plan=${encoded}`,
 	);
 	assert.deepEqual(planParser.parse(encoded), plan);
+	assert.deepEqual(planParser.parse(encoded.replace(/\./g, "")), plan);
 });
 
 test("old JSON links still load, while malformed plans are rejected", () => {
