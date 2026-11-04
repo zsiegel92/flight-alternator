@@ -15,6 +15,10 @@ pnpm dev
 
 Use `pnpm build` to type-check and build, and `pnpm test` for the calculation tests.
 
+## GitHub Pages
+
+The build uses `/flight-alternator/` for asset paths, while `pnpm dev` still serves at `/`. The workflow in `.github/workflows/pages.yml` builds and deploys `dist` on pushes to `main`. To enable it, choose **GitHub Actions** under **Settings → Pages → Build and deployment → Source**. No deployment runs until the workflow is pushed.
+
 ## How the numbers work
 
 Each person's flights are due on multiples of their chosen week interval, starting after week 0. On a coinciding weekend, one person flies. The fraction in the strategy control is the first person's share of those weekends; the second person receives the remainder. Actual assignments are spread across successive coincidences using cumulative rounding, so the 52-week timeline contains whole flights.
