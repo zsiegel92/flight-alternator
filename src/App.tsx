@@ -9,6 +9,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -22,13 +23,17 @@ import {
 	type Weekend,
 } from "./calculations";
 import {
-	airportSchema,
+	citySchema,
 	type Departure,
 	departureSchema,
 	googleFlightsUrl,
 	nextSaturday,
+	type ReturnDay,
+	returnDaySchema,
 	saturdaySchema,
 	shortDate,
+	type TimeWindow,
+	timeWindowSchema,
 	tripDates,
 } from "./flights";
 
@@ -51,14 +56,21 @@ const personSchema = z.object({
 	name: z.string().trim().min(1).max(40),
 	symbol: z.string().trim().min(1).max(20),
 	every: positiveInteger,
-	city: z.string().trim().min(1).max(60),
-	airport: airportSchema,
+	city: citySchema,
 	departure: departureSchema,
+	returnDay: returnDaySchema,
+	times: z.object({
+		friday: timeWindowSchema,
+		saturday: timeWindowSchema,
+		sunday: timeWindowSchema,
+		monday: timeWindowSchema,
+	}),
 });
 const formSchema = z
 	.object({
 		people: z.tuple([personSchema, personSchema]),
 		firstSaturday: saturdaySchema,
+		nonstopOnly: z.boolean(),
 		numerator: wholeNumber,
 		denominator: positiveInteger,
 		cost: money,
@@ -73,17 +85,29 @@ type PersonDraft = {
 	symbol: string;
 	every: string;
 	city: string;
-	airport: string;
 	departure: Departure;
+	returnDay: ReturnDay;
+	times: FlightTimes;
 };
+type FlightTimes = Record<Departure | ReturnDay, TimeWindow>;
 type Draft = {
 	people: [PersonDraft, PersonDraft];
 	firstSaturday: string;
+	nonstopOnly: boolean;
 	numerator: string;
 	denominator: string;
 	cost: string;
 };
 type Person = z.infer<typeof personSchema>;
+
+function defaultTimes(): FlightTimes {
+	return {
+		friday: { start: 18, end: 20 },
+		saturday: { start: 6, end: 9 },
+		sunday: { start: 18, end: 23 },
+		monday: { start: 4, end: 6 },
+	};
+}
 
 const initialDraft: Draft = {
 	people: [
@@ -92,19 +116,22 @@ const initialDraft: Draft = {
 			symbol: "ℤ",
 			every: "3",
 			city: "Orlando",
-			airport: "MCO",
 			departure: "friday",
+			returnDay: "sunday",
+			times: defaultTimes(),
 		},
 		{
 			name: "Estrella",
 			symbol: "⭐️",
 			every: "5",
 			city: "Philadelphia",
-			airport: "PHL",
 			departure: "saturday",
+			returnDay: "sunday",
+			times: defaultTimes(),
 		},
 	],
 	firstSaturday: nextSaturday(),
+	nonstopOnly: false,
 	numerator: "1",
 	denominator: "1",
 	cost: "250",
@@ -131,14 +158,74 @@ function currency(value: number): string {
 	});
 }
 
+const sliderWindowSchema = z
+	.tuple([z.number().int(), z.number().int()])
+	.transform(([start, end]) => ({ start, end }))
+	.pipe(timeWindowSchema);
+
+function hourLabel(hour: number): string {
+	return `${hour % 12 || 12}:00 ${hour < 12 ? "am" : "pm"}`;
+}
+
+function TimeWindowFields({
+	id,
+	title,
+	value,
+	onChange,
+}: {
+	id: string;
+	title: string;
+	value: TimeWindow;
+	onChange: (window: TimeWindow) => void;
+}) {
+	return (
+		<div className="space-y-3">
+			<div className="flex items-baseline justify-between gap-2 text-sm">
+				<p className="font-medium" id={`${id}-label`}>
+					{title}
+				</p>
+				<span className="tabular-nums">
+					{hourLabel(value.start)}–{hourLabel(value.end)}
+				</span>
+			</div>
+			<Slider
+				aria-labelledby={`${id}-label`}
+				className="py-2"
+				min={0}
+				max={23}
+				step={1}
+				minStepsBetweenValues={1}
+				thumbCollisionBehavior="none"
+				thumbLabels={[`${title} from`, `${title} to`]}
+				formatThumbValue={hourLabel}
+				value={[value.start, value.end]}
+				onValueChange={(raw) => {
+					const window = sliderWindowSchema.safeParse(raw);
+					if (window.success) onChange(window.data);
+				}}
+			/>
+		</div>
+	);
+}
+
 function PersonFields({
 	person,
 	index,
 	onChange,
+	onTimeChange,
 }: {
 	person: PersonDraft;
 	index: 0 | 1;
-	onChange: (index: 0 | 1, field: keyof PersonDraft, value: string) => void;
+	onChange: (
+		index: 0 | 1,
+		field: Exclude<keyof PersonDraft, "times">,
+		value: string,
+	) => void;
+	onTimeChange: (
+		index: 0 | 1,
+		day: keyof FlightTimes,
+		window: TimeWindow,
+	) => void;
 }) {
 	return (
 		<div className="min-w-0 space-y-3 rounded-xl border p-3">
@@ -184,33 +271,17 @@ function PersonFields({
 					}}
 				/>
 			</div>
-			<div className="grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2">
-				<div className="min-w-0 space-y-2">
-					<Label htmlFor={`city-${index}`}>Starting city</Label>
-					<Input
-						id={`city-${index}`}
-						value={person.city}
-						maxLength={60}
-						onChange={(event) => {
-							const value = eventText(event);
-							if (value !== null) onChange(index, "city", value);
-						}}
-					/>
-				</div>
-				<div className="min-w-0 space-y-2">
-					<Label htmlFor={`airport-${index}`}>Airport</Label>
-					<Input
-						id={`airport-${index}`}
-						value={person.airport}
-						maxLength={3}
-						autoCapitalize="characters"
-						className="uppercase"
-						onChange={(event) => {
-							const value = eventText(event);
-							if (value !== null) onChange(index, "airport", value);
-						}}
-					/>
-				</div>
+			<div className="space-y-2">
+				<Label htmlFor={`city-${index}`}>Starting city</Label>
+				<Input
+					id={`city-${index}`}
+					value={person.city}
+					maxLength={60}
+					onChange={(event) => {
+						const value = eventText(event);
+						if (value !== null) onChange(index, "city", value);
+					}}
+				/>
 			</div>
 			<div className="space-y-2">
 				<Label>Leaves for the visit</Label>
@@ -234,8 +305,22 @@ function PersonFields({
 						Saturday morning
 					</Button>
 				</div>
-				<p className="text-xs text-muted-foreground">Returns Sunday evening.</p>
 			</div>
+			<TimeWindowFields
+				id={`depart-${index}`}
+				title="Depart between"
+				value={person.times[person.departure]}
+				onChange={(window) => onTimeChange(index, person.departure, window)}
+			/>
+			<TimeWindowFields
+				id={`return-${index}`}
+				title="Return Sunday between"
+				value={person.times.sunday}
+				onChange={(window) => onTimeChange(index, "sunday", window)}
+			/>
+			<p className="text-xs text-muted-foreground">
+				Local departure times at each airport.
+			</p>
 		</div>
 	);
 }
@@ -245,11 +330,13 @@ function Timeline({
 	cycle,
 	people,
 	firstSaturday,
+	nonstopOnly,
 }: {
 	weekends: Weekend[];
 	cycle: bigint;
 	people: [Person, Person];
 	firstSaturday: string;
+	nonstopOnly: boolean;
 }) {
 	const names = [people[0].name, people[1].name];
 	const symbols = [people[0].symbol, people[1].symbol];
@@ -258,8 +345,8 @@ function Timeline({
 			<CardHeader>
 				<CardTitle>52-week timeline</CardTitle>
 				<CardDescription>
-					Week 0 starts on {shortDate(firstSaturday)}. Links set the route and
-					dates; choose morning or evening time filters in Google Flights.
+					Week 0 starts on {shortDate(firstSaturday)}. Links use each person's
+					selected departure and return times.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -295,7 +382,6 @@ function Timeline({
 							<div
 								key={day.week}
 								title={title}
-								aria-label={title}
 								className={`relative min-h-28 rounded-lg border p-2 text-center ${inFirstCycle ? "border-sky-300" : "border-border"} ${coincidence ? "bg-amber-50" : day.flyer === 0 ? "bg-sky-50" : day.flyer === 1 ? "bg-violet-50" : "bg-muted/30"}`}
 							>
 								<div className="text-[11px] text-muted-foreground">
@@ -324,10 +410,13 @@ function Timeline({
 									<a
 										className="text-[11px] font-medium text-primary underline underline-offset-2 hover:text-primary/70"
 										href={googleFlightsUrl({
-											from: person.airport,
-											to: destination.airport,
+											from: person.city,
+											to: destination.city,
 											depart: dates.depart,
 											returnDate: dates.returnDate,
+											nonstopOnly,
+											outboundTime: person.times[person.departure],
+											returnTime: person.times.sunday,
 										})}
 										target="_blank"
 										rel="noopener noreferrer"
@@ -410,13 +499,34 @@ function App() {
 	const firstShare = share ? toNumber(share) : 0.5;
 	const secondShare = 1 - firstShare;
 
-	function updatePerson(index: 0 | 1, field: keyof PersonDraft, value: string) {
+	function updatePerson(
+		index: 0 | 1,
+		field: Exclude<keyof PersonDraft, "times">,
+		value: string,
+	) {
 		setDraft((current) => {
 			const people: [PersonDraft, PersonDraft] = [
 				{ ...current.people[0] },
 				{ ...current.people[1] },
 			];
 			people[index] = { ...people[index], [field]: value };
+			return { ...current, people };
+		});
+	}
+
+	function updateTime(
+		index: 0 | 1,
+		day: keyof FlightTimes,
+		window: TimeWindow,
+	) {
+		setDraft((current) => {
+			const people: [PersonDraft, PersonDraft] = [
+				{ ...current.people[0] },
+				{ ...current.people[1] },
+			];
+			const times = { ...people[index].times };
+			times[day] = window;
+			people[index] = { ...people[index], times };
 			return { ...current, people };
 		});
 	}
@@ -436,8 +546,7 @@ function App() {
 							<CardTitle>People & plans</CardTitle>
 							<CardDescription>
 								Each person flies every set number of weeks. The other person's
-								city is the destination. Use three-letter airport codes for
-								flight links.
+								city is the destination.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="grid gap-3 sm:grid-cols-2">
@@ -445,11 +554,13 @@ function App() {
 								person={draft.people[0]}
 								index={0}
 								onChange={updatePerson}
+								onTimeChange={updateTime}
 							/>
 							<PersonFields
 								person={draft.people[1]}
 								index={1}
 								onChange={updatePerson}
+								onTimeChange={updateTime}
 							/>
 							<div className="space-y-3 border-t pt-4 sm:col-span-2">
 								<h2 className="text-sm font-medium">Coinciding strategy</h2>
@@ -566,11 +677,23 @@ function App() {
 										}}
 									/>
 								</div>
+								<div className="flex items-center gap-2">
+									<Checkbox
+										id="nonstop-only"
+										checked={draft.nonstopOnly}
+										onCheckedChange={(checked) => {
+											const result = z.boolean().safeParse(checked);
+											if (result.success)
+												setDraft((current) => ({
+													...current,
+													nonstopOnly: result.data,
+												}));
+										}}
+									/>
+									<Label htmlFor="nonstop-only">Nonstop only</Label>
+								</div>
 								<p className="break-words text-sm">
-									{draft.people[0].city} (
-									{draft.people[0].airport.toUpperCase()}) ↔{" "}
-									{draft.people[1].city} (
-									{draft.people[1].airport.toUpperCase()})
+									{draft.people[0].city} ↔ {draft.people[1].city}
 								</p>
 							</CardContent>
 						</Card>
@@ -613,9 +736,9 @@ function App() {
 							<CardHeader>
 								<CardTitle>Check the inputs</CardTitle>
 								<CardDescription>
-									Use a Saturday for week 0, a city and three-letter airport
-									code for each person, positive whole numbers for weeks and the
-									denominator, a share between 0 and 1, and a nonnegative cost.
+									Use a Saturday for week 0, a city for each person, positive
+									whole numbers for weeks and the denominator, a share between 0
+									and 1, and a nonnegative cost.
 								</CardDescription>
 							</CardHeader>
 						</Card>
@@ -740,6 +863,7 @@ function App() {
 					cycle={result.cycle}
 					people={valid.people}
 					firstSaturday={valid.firstSaturday}
+					nonstopOnly={valid.nonstopOnly}
 				/>
 			)}
 		</main>
