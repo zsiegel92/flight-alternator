@@ -18,7 +18,12 @@ const responseSchema = z.object({
 
 const query = `
 SELECT DISTINCT ?city ?cityLabel ?freebaseID ?stateLabel ?airportCode WHERE {
-  ?city wdt:P31/wdt:P279* wd:Q515;
+  {
+    ?city wdt:P31/wdt:P279* wd:Q515.
+  } UNION {
+    ?city wdt:P31 wd:Q1093829.
+  }
+  ?city
         wdt:P17 wd:Q30;
         wdt:P646 ?freebaseID.
   OPTIONAL {
@@ -61,19 +66,38 @@ for (const { city, cityLabel, freebaseID, stateLabel, airportCode } of result
 	cities.set(city.value, existing);
 }
 
-// Wikidata currently classifies this historical settlement as a city but can
-// omit the modern Los Angeles city from the query result.
+// Preserve major cities that Wikidata has classified inconsistently over time.
 for (const [key, city] of cities) {
 	if (city.id === "/m/025t2x8") cities.delete(key);
 }
-cities.set("https://www.wikidata.org/wiki/Q65", {
-	name: "Los Angeles",
-	state: "California",
-	id: "/m/030qb3t",
-	airports: new Set(),
-});
+for (const city of [
+	{ qid: "Q65", name: "Los Angeles", state: "California", id: "/m/030qb3t" },
+	{ qid: "Q16568", name: "Jacksonville", state: "Florida", id: "/m/0ggh3" },
+	{ qid: "Q8652", name: "Miami", state: "Florida", id: "/m/0f2v0" },
+	{ qid: "Q49255", name: "Tampa", state: "Florida", id: "/m/0n1rj" },
+	{ qid: "Q975", name: "San Antonio", state: "Texas", id: "/m/0f2w0" },
+]) {
+	cities.set(`https://www.wikidata.org/wiki/${city.qid}`, {
+		name: city.name,
+		state: city.state,
+		id: city.id,
+		airports: new Set(),
+	});
+}
 
-const entries = [...cities.values()];
+const entriesById = new Map<
+	string,
+	typeof cities extends Map<string, infer T> ? T : never
+>();
+for (const city of cities.values()) entriesById.set(city.id, city);
+const allEntries = [...entriesById.values()];
+const invalidNames = allEntries.filter((city) => /^Q\d+$/.test(city.name));
+if (invalidNames.length > 0) {
+	console.warn(
+		`Skipping ${invalidNames.length} city records with no English name: ${invalidNames.map((city) => city.id).join(", ")}`,
+	);
+}
+const entries = allEntries.filter((city) => !/^Q\d+$/.test(city.name));
 const nameCounts = new Map<string, number>();
 for (const city of entries) {
 	const key = city.name.toLocaleLowerCase("en-US");

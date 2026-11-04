@@ -20,9 +20,16 @@ export type FlightLocation =
 
 // These IDs are already used in Google Flights city searches.
 const verifiedCityLocations: Record<string, string> = {
+	burbank: "/m/0r00l",
+	houston: "/m/03l2n",
+	jacksonville: "/m/0ggh3",
+	"los angeles": "/m/030qb3t",
+	miami: "/m/0f2v0",
 	orlando: "/m/0ply0",
 	philadelphia: "/m/0dclg",
+	"san antonio": "/m/0f2w0",
 	seattle: "/m/0d9jr",
+	tampa: "/m/0n1rj",
 	"new york": "/m/02_286",
 	"new york city": "/m/02_286",
 };
@@ -42,9 +49,16 @@ function normalizeCity(name: string): string {
 export const cityOptions = [
 	...new Set([
 		...usCities.map((city) => city.label),
+		"Burbank",
+		"Houston",
+		"Jacksonville",
+		"Los Angeles",
+		"Miami",
 		"Orlando",
 		"Philadelphia",
+		"San Antonio",
 		"New York",
+		"Tampa",
 	]),
 ].sort((a, b) => a.localeCompare(b, "en-US"));
 

@@ -19,6 +19,7 @@ function Combobox({
 	const filteredOptions = query
 		? options.filter((option) => option.toLocaleLowerCase().includes(query))
 		: options;
+	const visibleOptions = filteredOptions.slice(0, 100);
 
 	return (
 		<ComboboxPrimitive.Root
@@ -53,7 +54,7 @@ function Combobox({
 				>
 					<ComboboxPrimitive.Popup className="max-h-60 min-w-(--anchor-width) overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-md outline-none">
 						<ComboboxPrimitive.List className="max-h-60 overflow-y-auto p-1">
-							{filteredOptions.map((option, index) => (
+							{visibleOptions.map((option, index) => (
 								<ComboboxPrimitive.Item
 									key={option}
 									value={option}
@@ -69,6 +70,12 @@ function Combobox({
 							{filteredOptions.length === 0 && (
 								<div className="px-2 py-1.5 text-sm text-muted-foreground">
 									No cities found.
+								</div>
+							)}
+							{filteredOptions.length > visibleOptions.length && (
+								<div className="border-t px-2 py-1.5 text-xs text-muted-foreground">
+									Type to narrow {filteredOptions.length.toLocaleString()}{" "}
+									matches.
 								</div>
 							)}
 						</ComboboxPrimitive.List>
