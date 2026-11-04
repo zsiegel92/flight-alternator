@@ -7,15 +7,23 @@ import {
 	tripDates,
 } from "../src/flights.ts";
 
-test("flight weekends use the chosen departure day and Sunday return", () => {
+test("flight weekends use the chosen departure and return days", () => {
 	assert.equal(nextSaturday(new Date(2026, 10, 3)), "2026-11-07");
-	assert.deepEqual(tripDates(3, "2026-11-07", "friday"), {
+	assert.deepEqual(tripDates(3, "2026-11-07", "friday", "sunday"), {
 		depart: "2026-11-27",
 		returnDate: "2026-11-29",
 	});
-	assert.deepEqual(tripDates(3, "2026-11-07", "saturday"), {
+	assert.deepEqual(tripDates(3, "2026-11-07", "saturday", "sunday"), {
 		depart: "2026-11-28",
 		returnDate: "2026-11-29",
+	});
+	assert.deepEqual(tripDates(3, "2026-11-07", "friday", "monday"), {
+		depart: "2026-11-27",
+		returnDate: "2026-11-30",
+	});
+	assert.deepEqual(tripDates(3, "2026-11-07", "saturday", "monday"), {
+		depart: "2026-11-28",
+		returnDate: "2026-11-30",
 	});
 	assert.equal(saturdaySchema.safeParse("2026-11-07").success, true);
 	assert.equal(saturdaySchema.safeParse("2026-11-06").success, false);

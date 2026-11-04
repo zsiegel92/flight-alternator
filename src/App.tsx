@@ -131,7 +131,7 @@ const initialDraft: Draft = {
 		},
 	],
 	firstSaturday: nextSaturday(),
-	nonstopOnly: false,
+	nonstopOnly: true,
 	numerator: "1",
 	denominator: "1",
 	cost: "250",
@@ -283,27 +283,40 @@ function PersonFields({
 					}}
 				/>
 			</div>
-			<div className="space-y-2">
-				<Label>Leaves for the visit</Label>
-				<div className="flex flex-wrap gap-1">
-					<Button
-						type="button"
-						size="xs"
-						variant={person.departure === "friday" ? "default" : "outline"}
-						aria-pressed={person.departure === "friday"}
-						onClick={() => onChange(index, "departure", "friday")}
-					>
-						Friday night
-					</Button>
-					<Button
-						type="button"
-						size="xs"
-						variant={person.departure === "saturday" ? "default" : "outline"}
-						aria-pressed={person.departure === "saturday"}
-						onClick={() => onChange(index, "departure", "saturday")}
-					>
-						Saturday morning
-					</Button>
+			<div className="grid grid-cols-2 gap-2">
+				<div className="space-y-2">
+					<p className="text-sm font-medium">Depart</p>
+					<div className="flex flex-wrap gap-1">
+						{(["friday", "saturday"] as const).map((day) => (
+							<Button
+								key={day}
+								type="button"
+								size="xs"
+								variant={person.departure === day ? "default" : "outline"}
+								aria-pressed={person.departure === day}
+								onClick={() => onChange(index, "departure", day)}
+							>
+								{day === "friday" ? "Friday" : "Saturday"}
+							</Button>
+						))}
+					</div>
+				</div>
+				<div className="space-y-2">
+					<p className="text-sm font-medium">Return</p>
+					<div className="flex flex-wrap gap-1">
+						{(["sunday", "monday"] as const).map((day) => (
+							<Button
+								key={day}
+								type="button"
+								size="xs"
+								variant={person.returnDay === day ? "default" : "outline"}
+								aria-pressed={person.returnDay === day}
+								onClick={() => onChange(index, "returnDay", day)}
+							>
+								{day === "sunday" ? "Sunday" : "Monday"}
+							</Button>
+						))}
+					</div>
 				</div>
 			</div>
 			<TimeWindowFields
@@ -314,9 +327,9 @@ function PersonFields({
 			/>
 			<TimeWindowFields
 				id={`return-${index}`}
-				title="Return Sunday between"
-				value={person.times.sunday}
-				onChange={(window) => onTimeChange(index, "sunday", window)}
+				title="Return between"
+				value={person.times[person.returnDay]}
+				onChange={(window) => onTimeChange(index, person.returnDay, window)}
 			/>
 			<p className="text-xs text-muted-foreground">
 				Local departure times at each airport.
@@ -366,12 +379,18 @@ function Timeline({
 						const destination =
 							day.flyer === null ? null : people[day.flyer === 0 ? 1 : 0];
 						const dates = person
-							? tripDates(day.week, firstSaturday, person.departure)
+							? tripDates(
+									day.week,
+									firstSaturday,
+									person.departure,
+									person.returnDay,
+								)
 							: null;
 						const saturday = tripDates(
 							day.week,
 							firstSaturday,
 							"saturday",
+							"sunday",
 						).depart;
 						const title = coincidence
 							? `Week ${day.week}: both planned to fly; ${names[day.flyer ?? 0]} flies`
@@ -416,7 +435,7 @@ function Timeline({
 											returnDate: dates.returnDate,
 											nonstopOnly,
 											outboundTime: person.times[person.departure],
-											returnTime: person.times.sunday,
+											returnTime: person.times[person.returnDay],
 										})}
 										target="_blank"
 										rel="noopener noreferrer"
@@ -575,21 +594,21 @@ function App() {
 								<Slider
 									aria-label={`Coinciding flights: left for ${names[0]}, right for ${names[1]}`}
 									min={0}
-									max={100}
+									max={4}
 									step={1}
-									value={[Math.round(secondShare * 100)]}
+									value={[Math.round(secondShare * 4)]}
 									onValueChange={(raw) => {
 										const value = z
 											.number()
 											.int()
 											.min(0)
-											.max(100)
+											.max(4)
 											.safeParse(Array.isArray(raw) ? raw[0] : raw);
 										if (value.success)
 											setDraft((current) => ({
 												...current,
-												numerator: String(100 - value.data),
-												denominator: "100",
+												numerator: String(4 - value.data),
+												denominator: "4",
 											}));
 									}}
 								/>
