@@ -1,3 +1,4 @@
+import { ArrowLeftRight } from "lucide-react";
 import { type ChangeEvent, useState } from "react";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
@@ -121,7 +122,7 @@ const initialDraft: Draft = {
 		{
 			name: "Zach",
 			symbol: "ℤ",
-			every: "3",
+			every: "4",
 			city: "Orlando",
 			departure: "friday",
 			returnDay: "sunday",
@@ -130,7 +131,7 @@ const initialDraft: Draft = {
 		{
 			name: "Estrella",
 			symbol: "⭐️",
-			every: "5",
+			every: "6",
 			city: "Philadelphia",
 			departure: "saturday",
 			returnDay: "sunday",
@@ -141,7 +142,7 @@ const initialDraft: Draft = {
 	nonstopOnly: true,
 	numerator: "1",
 	denominator: "1",
-	cost: "250",
+	cost: "330",
 };
 
 function eventText(event: ChangeEvent<HTMLInputElement>): string | null {
@@ -210,36 +211,61 @@ function FlightLeg({
 	);
 }
 
-function TimeWindowFields({
+function FlightDepartureFields({
 	id,
-	title,
+	city,
+	day,
+	otherDay,
 	value,
+	onDayToggle,
 	onChange,
 }: {
 	id: string;
-	title: string;
+	city: string;
+	day: Departure | ReturnDay;
+	otherDay: Departure | ReturnDay;
 	value: TimeWindow;
+	onDayToggle: () => void;
 	onChange: (window: TimeWindow) => void;
 }) {
 	return (
-		<div className="space-y-3">
-			<div className="flex items-baseline justify-between gap-2 text-sm">
-				<p className="font-medium" id={`${id}-label`}>
-					{title}
-				</p>
-				<span className="tabular-nums">
-					{hourLabel(value.start)}–{hourLabel(value.end)}
+		<div className="space-y-2">
+			<p className="text-sm font-medium" id={`${id}-heading`}>
+				Depart {city}
+			</p>
+			<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+				<Button
+					type="button"
+					variant="outline"
+					size="xs"
+					aria-label={`Change departure from ${city} to ${otherDay}`}
+					onClick={onDayToggle}
+				>
+					<span className="capitalize">{day}</span>
+					<span className="text-[9px] text-muted-foreground line-through capitalize">
+						{otherDay}
+					</span>
+					<ArrowLeftRight
+						aria-hidden="true"
+						className="size-3 text-muted-foreground"
+					/>
+				</Button>
+				<span id={`${id}-time`} className="tabular-nums">
+					between {hourLabel(value.start)}–{hourLabel(value.end)}
 				</span>
 			</div>
 			<Slider
-				aria-labelledby={`${id}-label`}
+				aria-labelledby={`${id}-heading ${id}-time`}
 				className="py-2"
 				min={0}
 				max={23}
 				step={1}
 				minStepsBetweenValues={1}
 				thumbCollisionBehavior="none"
-				thumbLabels={[`${title} from`, `${title} to`]}
+				thumbLabels={[
+					`Earliest departure from ${city}`,
+					`Latest departure from ${city}`,
+				]}
 				formatThumbValue={hourLabel}
 				value={[value.start, value.end]}
 				onValueChange={(raw) => {
@@ -272,6 +298,9 @@ function PersonFields({
 		window: TimeWindow,
 	) => void;
 }) {
+	const otherDeparture = person.departure === "friday" ? "saturday" : "friday";
+	const otherReturn = person.returnDay === "sunday" ? "monday" : "sunday";
+
 	return (
 		<div className="min-w-0 space-y-3 rounded-xl border p-3">
 			<div className="grid grid-cols-[minmax(0,1fr)_4rem] gap-2">
@@ -328,55 +357,23 @@ function PersonFields({
 					}}
 				/>
 			</div>
-			<div className="space-y-3">
-				<p className="text-sm font-medium">
-					Depart {person.city}{" "}
-					<span className="capitalize">{person.departure}</span>
-				</p>
-				<div className="flex flex-wrap gap-1">
-					{(["friday", "saturday"] as const).map((day) => (
-						<Button
-							key={day}
-							type="button"
-							size="xs"
-							variant={person.departure === day ? "default" : "outline"}
-							aria-pressed={person.departure === day}
-							onClick={() => onChange(index, "departure", day)}
-						>
-							{day === "friday" ? "Friday" : "Saturday"}
-						</Button>
-					))}
-				</div>
-				<TimeWindowFields
-					id={`depart-${index}`}
-					title="Depart between"
-					value={person.times[person.departure]}
-					onChange={(window) => onTimeChange(index, person.departure, window)}
-				/>
-			</div>
-			<div className="space-y-3 border-t pt-3">
-				<p className="text-sm font-medium">
-					Depart {otherCity}{" "}
-					<span className="capitalize">{person.returnDay}</span>
-				</p>
-				<div className="flex flex-wrap gap-1">
-					{(["sunday", "monday"] as const).map((day) => (
-						<Button
-							key={day}
-							type="button"
-							size="xs"
-							variant={person.returnDay === day ? "default" : "outline"}
-							aria-pressed={person.returnDay === day}
-							onClick={() => onChange(index, "returnDay", day)}
-						>
-							{day === "sunday" ? "Sunday" : "Monday"}
-						</Button>
-					))}
-				</div>
-				<TimeWindowFields
+			<FlightDepartureFields
+				id={`depart-${index}`}
+				city={person.city}
+				day={person.departure}
+				otherDay={otherDeparture}
+				value={person.times[person.departure]}
+				onDayToggle={() => onChange(index, "departure", otherDeparture)}
+				onChange={(window) => onTimeChange(index, person.departure, window)}
+			/>
+			<div className="border-t pt-3">
+				<FlightDepartureFields
 					id={`return-${index}`}
-					title="Depart between"
+					city={otherCity}
+					day={person.returnDay}
+					otherDay={otherReturn}
 					value={person.times[person.returnDay]}
+					onDayToggle={() => onChange(index, "returnDay", otherReturn)}
 					onChange={(window) => onTimeChange(index, person.returnDay, window)}
 				/>
 			</div>
