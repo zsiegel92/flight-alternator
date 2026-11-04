@@ -2,6 +2,8 @@
 
 A frontend-only React calculator for two people planning visits. There is no server, account, storage, or API request.
 
+Enter each person's starting city and three-letter airport code. Their destination is the other person's city. Choose a Saturday for week 0 and whether each person leaves Friday night or Saturday morning; all trips return Sunday evening. Flight weekends link to Google Flights with the assigned person's round-trip route and dates. Select morning or evening time filters in Google Flights.
+
 ## Run
 
 ```sh
@@ -27,5 +29,7 @@ The 52-week totals count the actual displayed weekends. Long-run annual figures 
 
 - `src/App.tsx`: inputs, dashboard, and timeline
 - `src/calculations.ts`: scheduling and exact fraction math
+- `src/flights.ts`: calendar dates and Google Flights links
 - `src/components/ui/`: shadcn components
 - `tests/calculations.test.ts`: scheduling checks
+- `tests/flights.test.ts`: date and route checks
