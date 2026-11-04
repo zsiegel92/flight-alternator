@@ -253,11 +253,13 @@ function TimeWindowFields({
 
 function PersonFields({
 	person,
+	otherCity,
 	index,
 	onChange,
 	onTimeChange,
 }: {
 	person: PersonDraft;
+	otherCity: string;
 	index: 0 | 1;
 	onChange: (
 		index: 0 | 1,
@@ -326,57 +328,58 @@ function PersonFields({
 					}}
 				/>
 			</div>
-			<div className="grid grid-cols-2 gap-2">
-				<div className="space-y-2">
-					<p className="text-sm font-medium">Depart</p>
-					<div className="flex flex-wrap gap-1">
-						{(["friday", "saturday"] as const).map((day) => (
-							<Button
-								key={day}
-								type="button"
-								size="xs"
-								variant={person.departure === day ? "default" : "outline"}
-								aria-pressed={person.departure === day}
-								onClick={() => onChange(index, "departure", day)}
-							>
-								{day === "friday" ? "Friday" : "Saturday"}
-							</Button>
-						))}
-					</div>
+			<div className="space-y-3">
+				<p className="text-sm font-medium">
+					Depart {person.city}{" "}
+					<span className="capitalize">{person.departure}</span>
+				</p>
+				<div className="flex flex-wrap gap-1">
+					{(["friday", "saturday"] as const).map((day) => (
+						<Button
+							key={day}
+							type="button"
+							size="xs"
+							variant={person.departure === day ? "default" : "outline"}
+							aria-pressed={person.departure === day}
+							onClick={() => onChange(index, "departure", day)}
+						>
+							{day === "friday" ? "Friday" : "Saturday"}
+						</Button>
+					))}
 				</div>
-				<div className="space-y-2">
-					<p className="text-sm font-medium">Return</p>
-					<div className="flex flex-wrap gap-1">
-						{(["sunday", "monday"] as const).map((day) => (
-							<Button
-								key={day}
-								type="button"
-								size="xs"
-								variant={person.returnDay === day ? "default" : "outline"}
-								aria-pressed={person.returnDay === day}
-								onClick={() => onChange(index, "returnDay", day)}
-							>
-								{day === "sunday" ? "Sunday" : "Monday"}
-							</Button>
-						))}
-					</div>
-				</div>
+				<TimeWindowFields
+					id={`depart-${index}`}
+					title="Depart between"
+					value={person.times[person.departure]}
+					onChange={(window) => onTimeChange(index, person.departure, window)}
+				/>
 			</div>
-			<TimeWindowFields
-				id={`depart-${index}`}
-				title="Depart between"
-				value={person.times[person.departure]}
-				onChange={(window) => onTimeChange(index, person.departure, window)}
-			/>
-			<TimeWindowFields
-				id={`return-${index}`}
-				title="Return between"
-				value={person.times[person.returnDay]}
-				onChange={(window) => onTimeChange(index, person.returnDay, window)}
-			/>
-			<p className="text-xs text-muted-foreground">
-				Local departure times at each airport.
-			</p>
+			<div className="space-y-3 border-t pt-3">
+				<p className="text-sm font-medium">
+					Depart {otherCity}{" "}
+					<span className="capitalize">{person.returnDay}</span>
+				</p>
+				<div className="flex flex-wrap gap-1">
+					{(["sunday", "monday"] as const).map((day) => (
+						<Button
+							key={day}
+							type="button"
+							size="xs"
+							variant={person.returnDay === day ? "default" : "outline"}
+							aria-pressed={person.returnDay === day}
+							onClick={() => onChange(index, "returnDay", day)}
+						>
+							{day === "sunday" ? "Sunday" : "Monday"}
+						</Button>
+					))}
+				</div>
+				<TimeWindowFields
+					id={`return-${index}`}
+					title="Depart between"
+					value={person.times[person.returnDay]}
+					onChange={(window) => onTimeChange(index, person.returnDay, window)}
+				/>
+			</div>
 		</div>
 	);
 }
@@ -655,12 +658,14 @@ function App() {
 						<CardContent className="grid gap-3 sm:grid-cols-2">
 							<PersonFields
 								person={draft.people[0]}
+								otherCity={draft.people[1].city}
 								index={0}
 								onChange={updatePerson}
 								onTimeChange={updateTime}
 							/>
 							<PersonFields
 								person={draft.people[1]}
+								otherCity={draft.people[0].city}
 								index={1}
 								onChange={updatePerson}
 								onTimeChange={updateTime}
