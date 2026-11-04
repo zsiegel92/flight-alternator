@@ -1,32 +1,75 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-	googleFlightsUrl,
+	type CalendarDate,
+	calendarDateSchema,
+	compactDateRange,
 	nextSaturday,
+	parseDateInput,
 	saturdaySchema,
+	toIsoDate,
 	tripDates,
-} from "../src/flights.ts";
+} from "../src/date-utils.ts";
+import { googleFlightsUrl } from "../src/flights.ts";
+
+const date = (day: number): CalendarDate => ({ year: 2026, month: 11, day });
 
 test("flight weekends use the chosen departure and return days", () => {
-	assert.equal(nextSaturday(new Date(2026, 10, 3)), "2026-11-07");
-	assert.deepEqual(tripDates(3, "2026-11-07", "friday", "sunday"), {
-		depart: "2026-11-27",
-		returnDate: "2026-11-29",
+	assert.deepEqual(nextSaturday(new Date(2026, 10, 3)), date(7));
+	assert.deepEqual(tripDates(3, date(7), "friday", "sunday"), {
+		depart: date(27),
+		returnDate: date(29),
 	});
-	assert.deepEqual(tripDates(3, "2026-11-07", "saturday", "sunday"), {
-		depart: "2026-11-28",
-		returnDate: "2026-11-29",
+	assert.deepEqual(tripDates(3, date(7), "saturday", "sunday"), {
+		depart: date(28),
+		returnDate: date(29),
 	});
-	assert.deepEqual(tripDates(3, "2026-11-07", "friday", "monday"), {
-		depart: "2026-11-27",
-		returnDate: "2026-11-30",
+	assert.deepEqual(tripDates(3, date(7), "friday", "monday"), {
+		depart: date(27),
+		returnDate: date(30),
 	});
-	assert.deepEqual(tripDates(3, "2026-11-07", "saturday", "monday"), {
-		depart: "2026-11-28",
-		returnDate: "2026-11-30",
+	assert.deepEqual(tripDates(3, date(7), "saturday", "monday"), {
+		depart: date(28),
+		returnDate: date(30),
 	});
-	assert.equal(saturdaySchema.safeParse("2026-11-07").success, true);
-	assert.equal(saturdaySchema.safeParse("2026-11-06").success, false);
+	assert.equal(saturdaySchema.safeParse(date(7)).success, true);
+	assert.equal(saturdaySchema.safeParse(date(6)).success, false);
+});
+
+test("date input is parsed once into a validated calendar date", () => {
+	assert.deepEqual(parseDateInput("2026-11-07"), date(7));
+	assert.equal(toIsoDate(date(7)), "2026-11-07");
+	assert.equal(parseDateInput("2026-02-30"), null);
+	assert.deepEqual(parseDateInput("2028-02-29"), {
+		year: 2028,
+		month: 2,
+		day: 29,
+	});
+	assert.equal(
+		calendarDateSchema.safeParse({ year: 2026, month: 2, day: 30 }).success,
+		false,
+	);
+	assert.equal(
+		compactDateRange(
+			{ year: 2026, month: 5, day: 22 },
+			{ year: 2026, month: 5, day: 23 },
+		),
+		"5/22–23",
+	);
+	assert.equal(
+		compactDateRange(
+			{ year: 2026, month: 5, day: 31 },
+			{ year: 2026, month: 6, day: 1 },
+		),
+		"5/31–6/1",
+	);
+	assert.deepEqual(
+		tripDates(1, { year: 2026, month: 12, day: 26 }, "friday", "monday"),
+		{
+			depart: { year: 2027, month: 1, day: 1 },
+			returnDate: { year: 2027, month: 1, day: 4 },
+		},
+	);
 });
 
 test("city-wide round-trip link matches the supplied Philadelphia–Orlando example", () => {
@@ -34,8 +77,8 @@ test("city-wide round-trip link matches the supplied Philadelphia–Orlando exam
 		googleFlightsUrl({
 			from: "Philadelphia",
 			to: "Orlando",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 		}),
 	);
 	assert.equal(url.origin, "https://www.google.com");
@@ -49,8 +92,8 @@ test("city-wide round-trip link matches the supplied Philadelphia–Orlando exam
 		googleFlightsUrl({
 			from: "Orlando",
 			to: "Philadelphia",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 		}),
 	);
 	const raw = atob(
@@ -67,8 +110,8 @@ test("nonstop round-trip link matches the supplied Orlando–Philadelphia exampl
 		googleFlightsUrl({
 			from: "Orlando",
 			to: "Philadelphia",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 			nonstopOnly: true,
 		}),
 	);
@@ -84,8 +127,8 @@ test("round-trip time filters match the supplied Google Flights example", () => 
 		googleFlightsUrl({
 			from: "Orlando",
 			to: "Philadelphia",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 			nonstopOnly: true,
 			outboundTime: { start: 18, end: 20 },
 			returnTime: { start: 17, end: 22 },
@@ -99,8 +142,8 @@ test("round-trip time filters match the supplied Google Flights example", () => 
 		googleFlightsUrl({
 			from: "Orlando",
 			to: "Philadelphia",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 			outboundTime: { start: 20, end: 18 },
 		}),
 	);
@@ -111,8 +154,8 @@ test("other city names remain usable without airport codes", () => {
 		googleFlightsUrl({
 			from: "Boston",
 			to: "Orlando",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 		}),
 	);
 	assert.equal(
@@ -123,8 +166,8 @@ test("other city names remain usable without airport codes", () => {
 		googleFlightsUrl({
 			from: "Boston",
 			to: "Orlando",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 			nonstopOnly: true,
 		}),
 	);
@@ -136,16 +179,16 @@ test("other city names remain usable without airport codes", () => {
 		googleFlightsUrl({
 			from: "",
 			to: "Orlando",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 		}),
 	);
 	assert.throws(() =>
 		googleFlightsUrl({
 			from: "Boston",
 			to: "Orlando",
-			depart: "2026-11-27",
-			returnDate: "2026-11-29",
+			depart: date(27),
+			returnDate: date(29),
 			nonstopOnly: "yes" as never,
 		}),
 	);

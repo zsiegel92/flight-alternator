@@ -23,18 +23,25 @@ import {
 	type Weekend,
 } from "./calculations";
 import {
-	citySchema,
+	type CalendarDate,
+	compactDate,
+	compactDateRange,
 	type Departure,
 	departureSchema,
-	googleFlightsUrl,
 	nextSaturday,
+	parseDateInput,
 	type ReturnDay,
 	returnDaySchema,
 	saturdaySchema,
 	shortDate,
+	toIsoDate,
+	tripDates,
+} from "./date-utils";
+import {
+	citySchema,
+	googleFlightsUrl,
 	type TimeWindow,
 	timeWindowSchema,
-	tripDates,
 } from "./flights";
 
 const positiveInteger = z
@@ -92,7 +99,7 @@ type PersonDraft = {
 type FlightTimes = Record<Departure | ReturnDay, TimeWindow>;
 type Draft = {
 	people: [PersonDraft, PersonDraft];
-	firstSaturday: string;
+	firstSaturday: CalendarDate | null;
 	nonstopOnly: boolean;
 	numerator: string;
 	denominator: string;
@@ -102,8 +109,8 @@ type Person = z.infer<typeof personSchema>;
 
 function defaultTimes(): FlightTimes {
 	return {
-		friday: { start: 18, end: 20 },
-		saturday: { start: 6, end: 9 },
+		friday: { start: 18, end: 23 },
+		saturday: { start: 6, end: 11 },
 		sunday: { start: 18, end: 23 },
 		monday: { start: 4, end: 6 },
 	};
@@ -167,18 +174,6 @@ function hourLabel(hour: number): string {
 	return `${hour % 12 || 12}:00 ${hour < 12 ? "am" : "pm"}`;
 }
 
-function compactDate(date: string): string {
-	return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
-}
-
-function compactDateRange(start: string, end: string): string {
-	const last =
-		start.slice(0, 7) === end.slice(0, 7)
-			? String(Number(end.slice(8, 10)))
-			: compactDate(end);
-	return `${compactDate(start)}–${last}`;
-}
-
 function compactWindow(window: TimeWindow): string {
 	const start = window.start % 12 || 12;
 	const end = window.end % 12 || 12;
@@ -199,7 +194,7 @@ function FlightLeg({
 	from: string;
 	to: string;
 	day: Departure | ReturnDay;
-	date: string;
+	date: CalendarDate;
 	window: TimeWindow;
 }) {
 	const shortDay = `${day[0].toUpperCase()}${day.slice(1, 3)}`;
@@ -396,7 +391,7 @@ function Timeline({
 	weekends: Weekend[];
 	cycle: bigint;
 	people: [Person, Person];
-	firstSaturday: string;
+	firstSaturday: CalendarDate;
 	nonstopOnly: boolean;
 }) {
 	const names = [people[0].name, people[1].name];
@@ -486,7 +481,7 @@ function Timeline({
 								})}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label={`${title}. ${person.city} to ${destination.city}, ${dates.depart}, ${hourLabel(outboundTime.start)} to ${hourLabel(outboundTime.end)}. ${destination.city} to ${person.city}, ${dates.returnDate}, ${hourLabel(returnTime.start)} to ${hourLabel(returnTime.end)}.${nonstopOnly ? " Nonstop only." : ""} Open Google Flights.`}
+								aria-label={`${title}. ${person.city} to ${destination.city}, ${toIsoDate(dates.depart)}, ${hourLabel(outboundTime.start)} to ${hourLabel(outboundTime.end)}. ${destination.city} to ${person.city}, ${toIsoDate(dates.returnDate)}, ${hourLabel(returnTime.start)} to ${hourLabel(returnTime.end)}.${nonstopOnly ? " Nonstop only." : ""} Open Google Flights.`}
 							>
 								<div className="flex items-center justify-between gap-1 text-[9px] text-muted-foreground">
 									<span>#{day.week}</span>
@@ -774,14 +769,15 @@ function App() {
 										id="first-saturday"
 										className="max-w-52"
 										type="date"
-										value={draft.firstSaturday}
+										value={
+											draft.firstSaturday ? toIsoDate(draft.firstSaturday) : ""
+										}
 										onChange={(event) => {
-											const value = eventText(event);
-											if (value !== null)
-												setDraft((current) => ({
-													...current,
-													firstSaturday: value,
-												}));
+											const date = parseDateInput(event.currentTarget.value);
+											setDraft((current) => ({
+												...current,
+												firstSaturday: date,
+											}));
 										}}
 									/>
 								</div>

@@ -29,7 +29,8 @@ The 52-week totals count the actual displayed weekends. Long-run annual figures 
 
 - `src/App.tsx`: inputs, dashboard, and timeline
 - `src/calculations.ts`: scheduling and exact fraction math
-- `src/flights.ts`: calendar dates and Google Flights links
+- `src/date-utils.ts`: calendar dates and date helpers
+- `src/flights.ts`: Google Flights links
 - `src/components/ui/`: shadcn components
 - `tests/calculations.test.ts`: scheduling checks
 - `tests/flights.test.ts`: date and route checks
