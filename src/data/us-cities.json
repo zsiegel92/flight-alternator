@@ -1584,6 +1584,12 @@
 		"airports": ["LGB"]
 	},
 	{
+		"name": "Los Angeles",
+		"label": "Los Angeles",
+		"id": "/m/030qb3t",
+		"airports": []
+	},
+	{
 		"name": "Louisa",
 		"label": "Louisa",
 		"id": "/m/0tgnz",
@@ -2206,12 +2212,6 @@
 		"label": "Pueblo",
 		"id": "/m/060wq",
 		"airports": ["PUB"]
-	},
-	{
-		"name": "Pueblo de Los Angeles",
-		"label": "Pueblo de Los Angeles",
-		"id": "/m/025t2x8",
-		"airports": []
 	},
 	{
 		"name": "Pullman",

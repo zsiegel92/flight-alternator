@@ -61,6 +61,18 @@ for (const { city, cityLabel, freebaseID, stateLabel, airportCode } of result
 	cities.set(city.value, existing);
 }
 
+// Wikidata currently classifies this historical settlement as a city but can
+// omit the modern Los Angeles city from the query result.
+for (const [key, city] of cities) {
+	if (city.id === "/m/025t2x8") cities.delete(key);
+}
+cities.set("https://www.wikidata.org/wiki/Q65", {
+	name: "Los Angeles",
+	state: "California",
+	id: "/m/030qb3t",
+	airports: new Set(),
+});
+
 const entries = [...cities.values()];
 const nameCounts = new Map<string, number>();
 for (const city of entries) {
