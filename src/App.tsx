@@ -1,5 +1,5 @@
 import { ArrowLeftRight } from "lucide-react";
-import { parseAsJson, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { type ChangeEvent, useEffect } from "react";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +26,10 @@ import {
 } from "./calculations";
 import {
 	type CalendarDate,
-	calendarDateSchema,
 	compactDate,
 	compactDateRange,
 	type Departure,
 	departureSchema,
-	nextSaturday,
 	parseDateInput,
 	type ReturnDay,
 	returnDaySchema,
@@ -46,6 +44,12 @@ import {
 	type TimeWindow,
 	timeWindowSchema,
 } from "./flights";
+import {
+	type FlightTimes,
+	flightTimesSchema,
+	type PersonDraft,
+	planParser,
+} from "./plan-state";
 
 const positiveInteger = z
 	.string()
@@ -62,12 +66,6 @@ const money = z
 	.regex(/^\d+(?:\.\d{0,2})?$/, "Enter a valid amount")
 	.transform(Number)
 	.pipe(z.number().finite());
-const flightTimesSchema = z.object({
-	friday: timeWindowSchema,
-	saturday: timeWindowSchema,
-	sunday: timeWindowSchema,
-	monday: timeWindowSchema,
-});
 const personSchema = z.object({
 	name: z.string().trim().min(1).max(40),
 	symbol: z.string().trim().min(1).max(20),
@@ -92,64 +90,6 @@ const formSchema = z
 	});
 
 type Person = z.infer<typeof personSchema>;
-
-const draftPersonSchema = z.object({
-	name: z.string(),
-	symbol: z.string(),
-	every: z.string(),
-	city: z.string(),
-	departure: departureSchema,
-	returnDay: returnDaySchema,
-	times: flightTimesSchema,
-});
-const draftSchema = z.object({
-	people: z.tuple([draftPersonSchema, draftPersonSchema]),
-	firstSaturday: calendarDateSchema.nullable(),
-	nonstopOnly: z.boolean(),
-	numerator: z.string(),
-	denominator: z.string(),
-	cost: z.string(),
-});
-type PersonDraft = z.infer<typeof draftPersonSchema>;
-type FlightTimes = PersonDraft["times"];
-type Draft = z.infer<typeof draftSchema>;
-
-function defaultTimes(): FlightTimes {
-	return {
-		friday: { start: 18, end: 23 },
-		saturday: { start: 6, end: 11 },
-		sunday: { start: 18, end: 23 },
-		monday: { start: 4, end: 6 },
-	};
-}
-
-const initialDraft: Draft = {
-	people: [
-		{
-			name: "Zach",
-			symbol: "ℤ",
-			every: "4",
-			city: "Orlando",
-			departure: "friday",
-			returnDay: "sunday",
-			times: defaultTimes(),
-		},
-		{
-			name: "Estrella",
-			symbol: "⭐️",
-			every: "6",
-			city: "Philadelphia",
-			departure: "saturday",
-			returnDay: "sunday",
-			times: defaultTimes(),
-		},
-	],
-	firstSaturday: nextSaturday(),
-	nonstopOnly: true,
-	numerator: "1",
-	denominator: "1",
-	cost: "330",
-};
 
 function eventText(event: ChangeEvent<HTMLInputElement>): string | null {
 	const result = z.string().safeParse(event.currentTarget.value);
@@ -589,12 +529,7 @@ function Rate({
 }
 
 function App() {
-	const [draft, setDraft] = useQueryState(
-		"plan",
-		parseAsJson<Draft>(draftSchema)
-			.withDefault(initialDraft)
-			.withOptions({ clearOnDefault: false }),
-	);
+	const [draft, setDraft] = useQueryState("plan", planParser);
 	useEffect(() => {
 		// Make the default plan shareable before the first edit, too.
 		void setDraft((current) => current);
